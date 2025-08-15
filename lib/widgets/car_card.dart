@@ -21,11 +21,14 @@ class _CarCardState extends State<CarCard> {
   double averageRating = 0.0;
   int totalReviews = 0;
   bool isLoadingRatings = true;
+  String? providerName;
+  bool isLoadingProvider = false;
 
   @override
   void initState() {
     super.initState();
     _fetchRatings();
+    _fetchProviderName();
   }
 
   Future<void> _fetchRatings() async {
@@ -98,6 +101,107 @@ class _CarCardState extends State<CarCard> {
     }
   }
 
+  Future<void> _fetchProviderName() async {
+
+    // Check if we have a provider ID to fetch
+    if (widget.car.carProviderId == null || widget.car.carProviderId!.isEmpty) {
+      // Use existing provider name if available
+      if (widget.car.carProvider != null) {
+        print(
+          'Using existing provider object: ${widget.car.carProvider!.fullName}',
+        );
+        setState(() {
+          providerName = widget.car.carProvider!.fullName;
+        });
+      } else {
+        print('No carProviderId found for car: ${widget.car.id}');
+        setState(() {
+          providerName = 'No Provider';
+        });
+      }
+      return;
+    }
+
+    try {
+      setState(() {
+        isLoadingProvider = true;
+      });
+
+      final url = Environment.getUserNameUrl(widget.car.carProviderId!);
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        // Handle different response structures
+        String? name;
+        if (data is Map<String, dynamic>) {
+          // Check if data is nested (has 'data' field)
+          Map<String, dynamic> userData = data;
+          if (data.containsKey('data') &&
+              data['data'] is Map<String, dynamic>) {
+            userData = data['data'] as Map<String, dynamic>;
+          }
+
+          // Try different possible field names for the user's full name
+          name =
+              userData['fullName']?.toString() ??
+              userData['full_name']?.toString() ??
+              userData['name']?.toString() ??
+              userData['username']?.toString() ??
+              userData['email']?.toString();
+
+          // Handle firstName + lastName combination
+          if (name == null || name.isEmpty) {
+            final firstName = userData['firstName']?.toString() ?? '';
+            final lastName = userData['lastName']?.toString() ?? '';
+            if (firstName.isNotEmpty || lastName.isNotEmpty) {
+              name = '$firstName $lastName'.trim();
+            }
+          }
+
+        } else {
+          print('Unexpected data format: ${data.runtimeType}');
+        }
+
+        // Ensure we have a valid name
+        final finalName = (name != null && name.isNotEmpty)
+            ? name
+            : 'Unknown Provider';
+
+        setState(() {
+          providerName = finalName;
+        });
+      } else {
+        print('Provider API failed with status: ${response.statusCode}');
+        print('Error response: ${response.body}');
+        // Fallback to existing provider name or default
+        setState(() {
+          providerName = widget.car.carProvider?.fullName ?? 'Unknown Provider';
+        });
+      }
+    } catch (e) {
+      print(
+        'Error fetching provider name for ID ${widget.car.carProviderId}: $e',
+      );
+      // Fallback to existing provider name if available
+      setState(() {
+        providerName = widget.car.carProvider?.fullName ?? 'Unknown Provider';
+      });
+    } finally {
+      setState(() {
+        isLoadingProvider = false;
+      });
+    }
+  }
+
   Widget _buildStars(double rating) {
     List<Widget> stars = [];
     int fullStars = rating.floor();
@@ -113,10 +217,7 @@ class _CarCardState extends State<CarCard> {
       }
     }
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: stars,
-    );
+    return Row(mainAxisSize: MainAxisSize.min, children: stars);
   }
 
   Color _getStatusColor(String status) {
@@ -168,7 +269,8 @@ class _CarCardState extends State<CarCard> {
                     top: Radius.circular(12),
                   ),
                   child: SizedBox(
-                    height: 120, // Reduced from 140 to give more space for content
+                    height:
+                        140, // Reduced from 140 to give more space for content
                     width: double.infinity,
                     child:
                         widget.car.images.isNotEmpty &&
@@ -250,7 +352,7 @@ class _CarCardState extends State<CarCard> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    
+
                     // Rating section - compact layout
                     if (!isLoadingRatings) ...[
                       Row(
@@ -271,7 +373,7 @@ class _CarCardState extends State<CarCard> {
                       ),
                       const SizedBox(height: 4),
                     ],
-                    
+
                     // Car specifications - more compact layout
                     Row(
                       children: [
@@ -306,43 +408,54 @@ class _CarCardState extends State<CarCard> {
                         ),
                       ],
                     ),
-                    
+
                     // Spacer to push price to bottom
                     const Spacer(),
-                    
+
                     // Price and provider section
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        // Provider info - only show if available and space permits
-                        if (widget.car.carProvider != null)
-                          Expanded(
-                            flex: 2,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.person_outline,
-                                  size: 10,
-                                  color: Colors.blue,
-                                ),
-                                const SizedBox(width: 2),
-                                Flexible(
-                                  child: Text(
-                                    widget.car.carProvider!.fullName,
-                                    style: const TextStyle(
-                                      fontSize: 8,
-                                      color: Colors.grey,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
+                        // Provider info - show loading or provider name
+                        Expanded(
+                          flex: 2,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.person_outline,
+                                size: 10,
+                                color: Colors.blue,
+                              ),
+                              const SizedBox(width: 2),
+                              Flexible(
+                                child: isLoadingProvider
+                                    ? SizedBox(
+                                        height: 8,
+                                        width: 40,
+                                        child: LinearProgressIndicator(
+                                          backgroundColor: Colors.grey[200],
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                Colors.grey[400]!,
+                                              ),
+                                        ),
+                                      )
+                                    : Text(
+                                        providerName ?? 'Loading...',
+                                        style: const TextStyle(
+                                          fontSize: 8,
+                                          color: Colors.grey,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                              ),
+                            ],
                           ),
-                        
+                        ),
+
                         // Price section
                         Expanded(
                           flex: 1,
@@ -363,7 +476,10 @@ class _CarCardState extends State<CarCard> {
                               ),
                               const Text(
                                 '/day',
-                                style: TextStyle(fontSize: 7, color: Colors.grey),
+                                style: TextStyle(
+                                  fontSize: 7,
+                                  color: Colors.grey,
+                                ),
                               ),
                             ],
                           ),

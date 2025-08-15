@@ -12,6 +12,7 @@ class Car {
   final String modelYear;
   final List<String> features;
   final CarProvider? carProvider;
+  final String? carProviderId; // Store the provider ID separately
 
   Car({
     required this.id,
@@ -27,6 +28,7 @@ class Car {
     required this.modelYear,
     required this.features,
     this.carProvider,
+    this.carProviderId,
   });
 
   factory Car.fromJson(Map<String, dynamic> json) {
@@ -58,13 +60,22 @@ class Car {
 
       // Handle car provider safely
       CarProvider? provider;
+      String? providerId;
+
       if (json['car_providerId'] != null) {
         if (json['car_providerId'] is Map<String, dynamic>) {
+          // If car_providerId is a populated object
           provider = CarProvider.fromJson(json['car_providerId']);
-        } else if (json['carProvider'] != null &&
-            json['carProvider'] is Map<String, dynamic>) {
-          provider = CarProvider.fromJson(json['carProvider']);
+          providerId = provider.id;
+        } else if (json['car_providerId'] is String) {
+          // If car_providerId is just an ID string
+          providerId = json['car_providerId'];
         }
+      } else if (json['carProvider'] != null &&
+          json['carProvider'] is Map<String, dynamic>) {
+        // Alternative field name
+        provider = CarProvider.fromJson(json['carProvider']);
+        providerId = provider.id;
       }
 
       // Handle price with multiple possible fields
@@ -96,6 +107,7 @@ class Car {
             'Unknown',
         features: featureList,
         carProvider: provider,
+        carProviderId: providerId,
       );
     } catch (e) {
       print('Error parsing Car from JSON: $e');

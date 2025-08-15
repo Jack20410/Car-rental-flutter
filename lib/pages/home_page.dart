@@ -63,12 +63,14 @@ class _HomePageState extends State<HomePage> {
   Future<void> _fetchFeaturedCars() async {
     try {
       if (Environment.enableApiLogging) {
-        print('Fetching cars from: ${Environment.getVehiclesUrl()}');
+        print(
+          'Fetching cars from: ${Environment.getVehiclesUrl(filters: {'limit': '100'})}',
+        );
       }
 
       final response = await http
           .get(
-            Uri.parse(Environment.getVehiclesUrl()),
+            Uri.parse(Environment.getVehiclesUrl(filters: {'limit': '100'})),
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
@@ -76,9 +78,9 @@ class _HomePageState extends State<HomePage> {
           )
           .timeout(Duration(seconds: Environment.defaultTimeout));
 
-      print('Response status: ${response.statusCode}');
-      print('Response headers: ${response.headers}');
-      print('Response body: ${response.body}');
+      if (Environment.enableApiLogging) {
+        print('Response status: ${response.statusCode}');
+      }
 
       if (response.statusCode == 200) {
         final responseBody = response.body;

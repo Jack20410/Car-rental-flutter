@@ -203,8 +203,8 @@ class Environment {
   }
 
   /// User service endpoints
-  static String getUsersUrl() {
-    return '$apiUserService/users';
+  static String getUserNameUrl(String userId) {
+    return '$apiUserService/users/$userId';
   }
 
   static String getAuthUrl() {
