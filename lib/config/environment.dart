@@ -172,6 +172,36 @@ class Environment {
     return '$apiRatingService/ratings/$vehicleId';
   }
 
+  /// Get average rating for a vehicle (more efficient)
+  static String getAverageRatingUrl(String vehicleId) {
+    return '$apiRatingService/$vehicleId/average';
+  }
+
+  /// Get all ratings for a vehicle
+  static String getAllVehicleRatingsUrl(String vehicleId) {
+    return '$apiRatingService/$vehicleId';
+  }
+
+  /// Submit new rating
+  static String getSubmitRatingUrl() {
+    return '$apiRatingService';
+  }
+
+  /// Get ratings by user
+  static String getUserRatingsUrl(String userId) {
+    return '$apiRatingService/user/$userId';
+  }
+
+  /// Get ratings by provider
+  static String getProviderRatingsUrl(String providerId) {
+    return '$apiRatingService/by-provider/$providerId';
+  }
+
+  /// Get rating for specific rental
+  static String getRentalRatingUrl(String rentalId) {
+    return '$apiRatingService/by-rental/$rentalId';
+  }
+
   /// User service endpoints
   static String getUsersUrl() {
     return '$apiUserService/users';

@@ -173,6 +173,16 @@ class AppConfig {
     return '$apiRatingService/ratings/$vehicleId';
   }
 
+  /// Get average rating for a vehicle (more efficient)
+  static String getAverageRatingUrl(String vehicleId) {
+    return '$apiRatingService/$vehicleId/average';
+  }
+
+  /// Submit new rating
+  static String getSubmitRatingUrl() {
+    return '$apiRatingService';
+  }
+
   /// Get vehicle image URL
   static String getVehicleImageUrl(String imagePath) {
     if (imagePath.startsWith('http')) {
