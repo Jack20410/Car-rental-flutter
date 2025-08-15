@@ -105,15 +105,18 @@ class _CarCardState extends State<CarCard> {
 
     for (int i = 1; i <= 5; i++) {
       if (i <= fullStars) {
-        stars.add(const Icon(Icons.star, color: Colors.amber, size: 16));
+        stars.add(const Icon(Icons.star, color: Colors.amber, size: 14));
       } else if (i == fullStars + 1 && hasHalfStar) {
-        stars.add(const Icon(Icons.star_half, color: Colors.amber, size: 16));
+        stars.add(const Icon(Icons.star_half, color: Colors.amber, size: 14));
       } else {
-        stars.add(const Icon(Icons.star_border, color: Colors.amber, size: 16));
+        stars.add(const Icon(Icons.star_border, color: Colors.amber, size: 14));
       }
     }
 
-    return Row(children: stars);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: stars,
+    );
   }
 
   Color _getStatusColor(String status) {
@@ -157,7 +160,7 @@ class _CarCardState extends State<CarCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Image section
+            // Image section with fixed height
             Stack(
               children: [
                 ClipRRect(
@@ -165,7 +168,7 @@ class _CarCardState extends State<CarCard> {
                     top: Radius.circular(12),
                   ),
                   child: SizedBox(
-                    height: 140,
+                    height: 120, // Reduced from 140 to give more space for content
                     width: double.infinity,
                     child:
                         widget.car.images.isNotEmpty &&
@@ -184,7 +187,7 @@ class _CarCardState extends State<CarCard> {
                               color: Colors.grey[200],
                               child: const Icon(
                                 Icons.directions_car,
-                                size: 48,
+                                size: 40,
                                 color: Colors.grey,
                               ),
                             ),
@@ -193,7 +196,7 @@ class _CarCardState extends State<CarCard> {
                             color: Colors.grey[200],
                             child: const Icon(
                               Icons.directions_car,
-                              size: 48,
+                              size: 40,
                               color: Colors.grey,
                             ),
                           ),
@@ -205,18 +208,18 @@ class _CarCardState extends State<CarCard> {
                   right: 8,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
+                      horizontal: 6,
+                      vertical: 3,
                     ),
                     decoration: BoxDecoration(
                       color: _getStatusBackgroundColor(widget.car.status),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
                       widget.car.status,
                       style: TextStyle(
                         color: _getStatusColor(widget.car.status),
-                        fontSize: 12,
+                        fontSize: 10,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -224,92 +227,103 @@ class _CarCardState extends State<CarCard> {
                 ),
               ],
             ),
-            // Content section
+            // Content section - Use Expanded to fill remaining space
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Header with car name and provider
-                    SizedBox(
-                      height: 40, // Fixed height for 2 lines of text
+                    // Car name with flexible height
+                    Flexible(
                       child: Text(
                         widget.car.name,
                         style: const TextStyle(
-                          fontSize: 14,
+                          fontSize: 13,
                           fontWeight: FontWeight.w600,
                           color: Colors.black87,
-                          height: 1.2, // Line height for better spacing
+                          height: 1.1,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(height: 4),
-                    // Rating section - always show stars, even for no ratings
+                    
+                    // Rating section - compact layout
                     if (!isLoadingRatings) ...[
                       Row(
                         children: [
                           _buildStars(averageRating),
                           const SizedBox(width: 4),
-                          Text(
-                            totalReviews > 0 ? '($totalReviews)' : '(0)',
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: Colors.grey,
+                          Flexible(
+                            child: Text(
+                              totalReviews > 0 ? '($totalReviews)' : '(0)',
+                              style: const TextStyle(
+                                fontSize: 9,
+                                color: Colors.grey,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 4),
                     ],
-                    // Car specifications (compact)
+                    
+                    // Car specifications - more compact layout
                     Row(
                       children: [
                         Expanded(
                           child: _buildSpecItem(
-                            Icons.people,
+                            Icons.people_outline,
                             '${widget.car.seats}',
                           ),
                         ),
                         Expanded(
                           child: _buildSpecItem(
-                            Icons.local_gas_station,
-                            widget.car.fuelType,
+                            Icons.local_gas_station_outlined,
+                            _truncateText(widget.car.fuelType, 8),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Row(
                       children: [
                         Expanded(
                           child: _buildSpecItem(
-                            Icons.settings,
-                            widget.car.transmission,
+                            Icons.settings_outlined,
+                            _truncateText(widget.car.transmission, 6),
                           ),
                         ),
                         Expanded(
                           child: _buildSpecItem(
-                            Icons.directions_car,
+                            Icons.calendar_today_outlined,
                             widget.car.modelYear,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
-
-                    // Price section
+                    
+                    // Spacer to push price to bottom
+                    const Spacer(),
+                    
+                    // Price and provider section
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
+                        // Provider info - only show if available and space permits
                         if (widget.car.carProvider != null)
                           Expanded(
+                            flex: 2,
                             child: Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
                                 const Icon(
-                                  Icons.person,
+                                  Icons.person_outline,
                                   size: 10,
                                   color: Colors.blue,
                                 ),
@@ -328,22 +342,31 @@ class _CarCardState extends State<CarCard> {
                               ],
                             ),
                           ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              widget.car.rentalPricePerDay.toVNDCompact(),
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).primaryColor,
+                        
+                        // Price section
+                        Expanded(
+                          flex: 1,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  widget.car.rentalPricePerDay.toVNDCompact(),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: Theme.of(context).primaryColor,
+                                  ),
+                                ),
                               ),
-                            ),
-                            const Text(
-                              '/day',
-                              style: TextStyle(fontSize: 8, color: Colors.grey),
-                            ),
-                          ],
+                              const Text(
+                                '/day',
+                                style: TextStyle(fontSize: 7, color: Colors.grey),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -357,17 +380,24 @@ class _CarCardState extends State<CarCard> {
     );
   }
 
+  // Helper method to truncate text if too long
+  String _truncateText(String text, int maxLength) {
+    if (text.length <= maxLength) return text;
+    return '${text.substring(0, maxLength)}..';
+  }
+
   Widget _buildSpecItem(IconData icon, String text) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 10, color: Theme.of(context).primaryColor),
+        Icon(icon, size: 9, color: Theme.of(context).primaryColor),
         const SizedBox(width: 2),
         Flexible(
           child: Text(
             text,
-            style: const TextStyle(fontSize: 9, color: Colors.grey),
+            style: const TextStyle(fontSize: 8, color: Colors.grey),
             overflow: TextOverflow.ellipsis,
+            maxLines: 1,
           ),
         ),
       ],
