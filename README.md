@@ -55,7 +55,7 @@ A modern, feature-rich car rental mobile application built with Flutter, featuri
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/yourusername/car-rental-flutter-app.git
+git clone https://github.com/Jack20410/Car-rental-flutter
 cd car-rental-flutter-app
 ```
 
