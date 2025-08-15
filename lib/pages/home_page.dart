@@ -7,7 +7,8 @@ import 'package:shimmer/shimmer.dart';
 import '../models/car.dart';
 import '../models/popular_location.dart';
 import '../widgets/car_card.dart';
-import '../config/app_config.dart';
+import '../config/environment.dart';
+import 'cars_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -38,7 +39,7 @@ class _HomePageState extends State<HomePage> {
     for (var location in popularLocations) {
       try {
         final response = await http.get(
-          Uri.parse(AppConfig.getVehiclesUrl(city: location.name)),
+          Uri.parse(Environment.getVehiclesUrl(city: location.name)),
         );
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
@@ -61,33 +62,88 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _fetchFeaturedCars() async {
     try {
-      if (AppConfig.enableApiLogging) {
-        print('Fetching cars from: ${AppConfig.getVehiclesUrl()}');
+      if (Environment.enableApiLogging) {
+        print('Fetching cars from: ${Environment.getVehiclesUrl()}');
       }
-      final response = await http.get(Uri.parse(AppConfig.getVehiclesUrl()));
+
+      final response = await http
+          .get(
+            Uri.parse(Environment.getVehiclesUrl()),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(Duration(seconds: Environment.defaultTimeout));
+
       print('Response status: ${response.statusCode}');
+      print('Response headers: ${response.headers}');
       print('Response body: ${response.body}');
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['data']?['vehicles'] != null) {
-          final List<dynamic> vehicles = data['data']['vehicles'];
-          final availableVehicles = vehicles
-              .where((vehicle) => vehicle['status'] == 'Available')
-              .map((vehicle) => Car.fromJson(vehicle))
-              .toList();
-
-          print('Found ${availableVehicles.length} available vehicles');
-
-          // Get random cars
-          availableVehicles.shuffle();
-          setState(() {
-            featuredCars = availableVehicles.take(6).toList();
-            isLoading = false;
-          });
-        } else {
-          throw Exception('No vehicles data found in response');
+        final responseBody = response.body;
+        if (responseBody.isEmpty) {
+          throw Exception('Empty response from server');
         }
+
+        final data = json.decode(responseBody);
+        print('Decoded data type: ${data.runtimeType}');
+        print('Decoded data: $data');
+
+        // Handle different response structures
+        List<dynamic> vehicles = [];
+
+        if (data is List) {
+          // Direct array response
+          vehicles = data;
+        } else if (data is Map<String, dynamic>) {
+          if (data['data']?['vehicles'] != null) {
+            vehicles = data['data']['vehicles'] as List<dynamic>;
+          } else if (data['vehicles'] != null) {
+            vehicles = data['vehicles'] as List<dynamic>;
+          } else if (data['data'] != null && data['data'] is List) {
+            vehicles = data['data'] as List<dynamic>;
+          } else {
+            print('Unexpected response structure: $data');
+            throw Exception('Unexpected API response structure');
+          }
+        }
+
+        print('Found ${vehicles.length} total vehicles');
+
+        // Filter and parse vehicles with better error handling
+        final List<Car> availableVehicles = [];
+        for (int i = 0; i < vehicles.length; i++) {
+          try {
+            final vehicleData = vehicles[i];
+            print('Processing vehicle $i: $vehicleData');
+
+            if (vehicleData is Map<String, dynamic>) {
+              final car = Car.fromJson(vehicleData);
+              if (car.status.toLowerCase() == 'available') {
+                availableVehicles.add(car);
+              }
+            } else {
+              print('Vehicle $i is not a Map: ${vehicleData.runtimeType}');
+            }
+          } catch (e) {
+            print('Error parsing vehicle $i: $e');
+            print('Vehicle data: ${vehicles[i]}');
+            // Continue processing other vehicles
+          }
+        }
+
+        print('Found ${availableVehicles.length} available vehicles');
+
+        // Get random cars
+        availableVehicles.shuffle();
+        setState(() {
+          featuredCars = availableVehicles
+              .take(Environment.maxFeaturedCars)
+              .toList();
+          isLoading = false;
+          error = null; // Clear any previous errors
+        });
       } else {
         throw Exception(
           'Failed to load cars: ${response.statusCode} - ${response.body}',
@@ -155,73 +211,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildCarsPage() {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Cars'),
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.white,
-        automaticallyImplyLeading: false,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            // Search bar for cars page
-            TextField(
-              decoration: InputDecoration(
-                hintText: 'Search cars...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
-                  borderSide: BorderSide.none,
-                ),
-                filled: true,
-                fillColor: Colors.grey[100],
-              ),
-            ),
-            const SizedBox(height: 20),
-            // Cars grid
-            Expanded(
-              child: isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : error != null
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            error!,
-                            style: const TextStyle(color: Colors.red),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text('Please try again later'),
-                        ],
-                      ),
-                    )
-                  : GridView.builder(
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            childAspectRatio: 0.75,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                          ),
-                      itemCount: featuredCars.length,
-                      itemBuilder: (context, index) {
-                        final car = featuredCars[index];
-                        return CarCard(
-                          car: car,
-                          onTap: () {
-                            print('Tapped on car: ${car.name}');
-                          },
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return const CarsPage();
   }
 
   Widget _buildUserPage() {
@@ -433,7 +423,9 @@ class _HomePageState extends State<HomePage> {
                 viewportFraction: 0.8,
                 enlargeCenterPage: true,
                 autoPlay: true,
-                autoPlayInterval: const Duration(seconds: 3),
+                autoPlayInterval: Duration(
+                  seconds: Environment.carouselAutoPlayInterval,
+                ),
                 showIndicator: true,
                 slideIndicator: CircularStaticIndicator(),
                 onPageChanged: (index, reason) {},
@@ -557,9 +549,58 @@ class _HomePageState extends State<HomePage> {
             Center(
               child: Column(
                 children: [
-                  Text(error!, style: const TextStyle(color: Colors.red)),
+                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Failed to load cars',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 8),
-                  const Text('Please try again later'),
+                  Text(
+                    error!,
+                    style: const TextStyle(color: Colors.red),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        isLoading = true;
+                        error = null;
+                      });
+                      _fetchFeaturedCars();
+                    },
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            )
+          else if (featuredCars.isEmpty)
+            const Center(
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.directions_car_outlined,
+                    size: 64,
+                    color: Colors.grey,
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'No cars available',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Please check back later',
+                    style: TextStyle(color: Colors.grey),
+                  ),
                 ],
               ),
             )
@@ -567,9 +608,9 @@ class _HomePageState extends State<HomePage> {
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.75,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: Environment.gridCrossAxisCount,
+                childAspectRatio: Environment.gridChildAspectRatio,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
               ),

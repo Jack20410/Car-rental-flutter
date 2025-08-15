@@ -1,85 +1,256 @@
+/// Environment configuration for the Car Rental App
+///
+/// This file contains all environment-specific configurations including
+/// API endpoints, app settings, and environment overrides for development,
+/// staging, and production.
+library;
+
 class Environment {
-  // API Configuration
-  static const String baseUrl = 'http://10.0.2.2:3000';
-  static const String imageBaseUrl = 'http://10.0.2.2:3002';
+  // ==========================================
+  // MICROSERVICE API CONFIGURATIONS
+  // ==========================================
 
-  // API Endpoints
-  static const String vehiclesEndpoint = '/vehicles';
-  static const String ratingsEndpoint = '/ratings';
-  static const String authEndpoint = '/auth';
-  static const String usersEndpoint = '/users';
+  /// Production API Service URLs
+  static const String apiUserService =
+      'https://car-rental-user-service-m84z.onrender.com';
+  static const String apiChatService =
+      'https://car-rental-chat-service-m84z.onrender.com';
+  static const String apiPaymentService =
+      'https://car-rental-payment-service-m84z.onrender.com';
+  static const String apiAdminService =
+      'https://car-rental-admin-service-m84z.onrender.com';
+  static const String apiRentalService =
+      'https://car-rental-rental-service-m84z.onrender.com';
+  static const String apiRatingService =
+      'https://car-rental-rating-service-m84z.onrender.com';
+  static const String apiVehicleService =
+      'https://car-rental-vehicle-service-m84z.onrender.com';
 
-  // App Configuration
+  // ==========================================
+  // APPLICATION METADATA
+  // ==========================================
+
   static const String appName = 'Car Rental App';
   static const String appVersion = '1.0.0';
 
-  // Default Settings
-  static const int defaultTimeout = 30; // seconds
-  static const int carouselAutoPlayInterval = 3; // seconds
+  // ==========================================
+  // API & NETWORK SETTINGS
+  // ==========================================
+
+  /// Default timeout for API requests in seconds
+  static const int defaultTimeout = 30;
+
+  // ==========================================
+  // UI & DISPLAY SETTINGS
+  // ==========================================
+
+  /// Carousel auto-play interval in seconds
+  static const int carouselAutoPlayInterval = 3;
+
+  /// Maximum number of featured cars to display
   static const int maxFeaturedCars = 6;
+
+  /// Grid layout configuration
   static const int gridCrossAxisCount = 2;
   static const double gridChildAspectRatio = 0.75;
 
-  // Vietnamese Currency Settings
+  // ==========================================
+  // LOCALIZATION & CURRENCY
+  // ==========================================
+
+  /// Vietnamese currency configuration
   static const String currencySymbol = '₫';
   static const String currencyCode = 'VND';
   static const String priceUnit = '/day';
 
-  // Image Settings
-  static const int imageQuality = 80;
-  static const int maxImageCacheSize = 100; // MB
+  // ==========================================
+  // IMAGE & MEDIA SETTINGS
+  // ==========================================
 
-  // Debug Settings
+  /// Image quality for uploads (1-100)
+  static const int imageQuality = 80;
+
+  /// Maximum image cache size in MB
+  static const int maxImageCacheSize = 100;
+
+  // ==========================================
+  // DEBUG & MONITORING
+  // ==========================================
+
   static const bool enableDebugMode = true;
   static const bool enableApiLogging = true;
   static const bool enablePerformanceMonitoring = false;
 
-  // Build full API URLs
-  static String getApiUrl(String endpoint) {
-    return '$baseUrl$endpoint';
-  }
+  // ==========================================
+  // VEHICLE SERVICE API METHODS
+  // ==========================================
 
-  static String getImageUrl(String imagePath) {
-    if (imagePath.startsWith('http')) {
-      return imagePath;
-    }
-    return '$imageBaseUrl$imagePath';
-  }
+  /// Get all vehicles with optional filtering
+  ///
+  /// [city] Filter by city name
+  /// [filters] Additional query parameters for filtering
+  ///
+  /// Returns: Complete URL for vehicles endpoint
+  static String getVehiclesUrl({String? city, Map<String, String>? filters}) {
+    String url = '$apiVehicleService/vehicles';
+    List<String> queryParams = [];
 
-  static String getVehiclesUrl({String? city}) {
-    String url = getApiUrl(vehiclesEndpoint);
     if (city != null && city.isNotEmpty) {
-      url += '?city=${Uri.encodeComponent(city)}';
+      queryParams.add('city=${Uri.encodeComponent(city)}');
     }
+
+    if (filters != null) {
+      filters.forEach((key, value) {
+        queryParams.add(
+          '${Uri.encodeComponent(key)}=${Uri.encodeComponent(value)}',
+        );
+      });
+    }
+
+    if (queryParams.isNotEmpty) {
+      url += '?${queryParams.join('&')}';
+    }
+
     return url;
   }
 
+  /// Get specific vehicle by ID
+  static String getVehicleUrl(String vehicleId) {
+    return '$apiVehicleService/vehicles/$vehicleId';
+  }
+
+  /// Create new vehicle endpoint
+  static String getCreateVehicleUrl() {
+    return '$apiVehicleService/vehicles';
+  }
+
+  /// Update vehicle endpoint
+  static String getUpdateVehicleUrl(String vehicleId) {
+    return '$apiVehicleService/vehicles/$vehicleId';
+  }
+
+  /// Update vehicle status endpoint
+  static String getUpdateVehicleStatusUrl(String vehicleId) {
+    return '$apiVehicleService/vehicles/$vehicleId/status';
+  }
+
+  /// Delete vehicle endpoint
+  static String getDeleteVehicleUrl(String vehicleId) {
+    return '$apiVehicleService/vehicles/$vehicleId';
+  }
+
+  /// Delete vehicle image endpoint
+  static String getDeleteVehicleImageUrl(String vehicleId) {
+    return '$apiVehicleService/vehicles/$vehicleId/images';
+  }
+
+  /// Build proper image URL from various path formats
+  ///
+  /// Handles:
+  /// - Full HTTP URLs (returned as-is)
+  /// - Relative paths starting with '/' (prefixed with service URL)
+  /// - Image filenames (routed to uploads/vehicles/)
+  static String getVehicleImageUrl(String imagePath) {
+    if (imagePath.startsWith('http')) {
+      return imagePath;
+    }
+
+    // Handle relative image paths from vehicle service
+    if (imagePath.startsWith('/')) {
+      return '$apiVehicleService$imagePath';
+    }
+
+    return '$apiVehicleService/uploads/vehicles/$imagePath';
+  }
+
+  // ==========================================
+  // OTHER SERVICE API METHODS
+  // ==========================================
+
+  /// Rating service endpoints
   static String getRatingsUrl(String vehicleId) {
-    return getApiUrl('$ratingsEndpoint/$vehicleId');
+    return '$apiRatingService/ratings/$vehicleId';
+  }
+
+  /// User service endpoints
+  static String getUsersUrl() {
+    return '$apiUserService/users';
+  }
+
+  static String getAuthUrl() {
+    return '$apiUserService/auth';
+  }
+
+  /// Chat service endpoints
+  static String getChatUrl() {
+    return '$apiChatService/chat';
+  }
+
+  /// Payment service endpoints
+  static String getPaymentUrl() {
+    return '$apiPaymentService/payment';
+  }
+
+  /// Admin service endpoints
+  static String getAdminUrl() {
+    return '$apiAdminService/admin';
+  }
+
+  /// Rental service endpoints
+  static String getRentalUrl() {
+    return '$apiRentalService/rental';
   }
 }
 
-// Development Environment
+// ==========================================
+// ENVIRONMENT OVERRIDES
+// ==========================================
+
+/// Development Environment Configuration
+///
+/// Override URLs for local development with Android emulator
 class DevEnvironment extends Environment {
-  static const String baseUrl = 'http://10.0.2.2:3000';
-  static const String imageBaseUrl = 'http://10.0.2.2:3002';
-  static const bool enableDebugMode = true;
-  static const bool enableApiLogging = true;
+  // Local development service URLs (Android emulator)
+  static const String apiUserService = 'http://10.0.2.2:3001';
+  static const String apiChatService = 'http://10.0.2.2:3002';
+  static const String apiPaymentService = 'http://10.0.2.2:3003';
+  static const String apiAdminService = 'http://10.0.2.2:3004';
+  static const String apiRentalService = 'http://10.0.2.2:3005';
+  static const String apiRatingService = 'http://10.0.2.2:3006';
+  static const String apiVehicleService = 'http://10.0.2.2:3000';
 }
 
-// Production Environment
+/// Production Environment Configuration
+///
+/// Uses production URLs with optimized settings
 class ProdEnvironment extends Environment {
-  static const String baseUrl = 'https://your-api-domain.com';
-  static const String imageBaseUrl = 'https://your-image-domain.com';
+  // Production-optimized settings
   static const bool enableDebugMode = false;
   static const bool enableApiLogging = false;
   static const bool enablePerformanceMonitoring = true;
 }
 
-// Staging Environment
+/// Staging Environment Configuration
+///
+/// Staging environment with debug capabilities enabled
 class StagingEnvironment extends Environment {
-  static const String baseUrl = 'https://staging-api-domain.com';
-  static const String imageBaseUrl = 'https://staging-image-domain.com';
+  // Staging service URLs
+  static const String apiUserService =
+      'https://staging-car-rental-user-service.onrender.com';
+  static const String apiChatService =
+      'https://staging-car-rental-chat-service.onrender.com';
+  static const String apiPaymentService =
+      'https://staging-car-rental-payment-service.onrender.com';
+  static const String apiAdminService =
+      'https://staging-car-rental-admin-service.onrender.com';
+  static const String apiRentalService =
+      'https://staging-car-rental-rental-service.onrender.com';
+  static const String apiRatingService =
+      'https://staging-car-rental-rating-service.onrender.com';
+  static const String apiVehicleService =
+      'https://staging-car-rental-vehicle-service.onrender.com';
+
+  // Staging-specific settings
   static const bool enableDebugMode = true;
   static const bool enableApiLogging = true;
   static const bool enablePerformanceMonitoring = true;

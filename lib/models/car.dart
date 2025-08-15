@@ -30,26 +30,78 @@ class Car {
   });
 
   factory Car.fromJson(Map<String, dynamic> json) {
-    return Car(
-      id: json['_id'] ?? '',
-      name: json['name'] ?? 'Unnamed Vehicle',
-      brand: json['brand'] ?? 'Unknown Brand',
-      rentalPricePerDay: (json['rentalPricePerDay'] ?? json['price'] ?? 0)
-          .toDouble(),
-      status: json['status'] ?? 'Available',
-      location: Location.fromJson(
-        json['location'] ?? {'city': 'Location not specified'},
-      ),
-      images: List<String>.from(json['images'] ?? [json['image'] ?? '']),
-      seats: json['seats'] ?? 4,
-      fuelType: json['fuelType'] ?? 'Gasoline',
-      transmission: json['transmission'] ?? 'Manual',
-      modelYear: json['modelYear']?.toString() ?? 'Unknown',
-      features: List<String>.from(json['features'] ?? []),
-      carProvider: json['car_providerId'] != null
-          ? CarProvider.fromJson(json['car_providerId'])
-          : null,
-    );
+    try {
+      // Handle images safely
+      List<String> imageList = [];
+      if (json['images'] != null) {
+        if (json['images'] is List) {
+          imageList = List<String>.from(
+            json['images'].where(
+              (img) => img != null && img.toString().isNotEmpty,
+            ),
+          );
+        }
+      }
+      if (imageList.isEmpty &&
+          json['image'] != null &&
+          json['image'].toString().isNotEmpty) {
+        imageList.add(json['image'].toString());
+      }
+
+      // Handle features safely
+      List<String> featureList = [];
+      if (json['features'] != null && json['features'] is List) {
+        featureList = List<String>.from(
+          json['features'].where((feature) => feature != null),
+        );
+      }
+
+      // Handle car provider safely
+      CarProvider? provider;
+      if (json['car_providerId'] != null) {
+        if (json['car_providerId'] is Map<String, dynamic>) {
+          provider = CarProvider.fromJson(json['car_providerId']);
+        } else if (json['carProvider'] != null &&
+            json['carProvider'] is Map<String, dynamic>) {
+          provider = CarProvider.fromJson(json['carProvider']);
+        }
+      }
+
+      // Handle price with multiple possible fields
+      double price = 0.0;
+      if (json['rentalPricePerDay'] != null) {
+        price = (json['rentalPricePerDay']).toDouble();
+      } else if (json['price'] != null) {
+        price = (json['price']).toDouble();
+      } else if (json['pricePerDay'] != null) {
+        price = (json['pricePerDay']).toDouble();
+      }
+
+      return Car(
+        id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
+        name: json['name']?.toString() ?? 'Unnamed Vehicle',
+        brand: json['brand']?.toString() ?? 'Unknown Brand',
+        rentalPricePerDay: price,
+        status: json['status']?.toString() ?? 'Available',
+        location: Location.fromJson(
+          json['location'] ?? {'city': 'Location not specified'},
+        ),
+        images: imageList,
+        seats: json['seats']?.toInt() ?? 4,
+        fuelType: json['fuelType']?.toString() ?? 'Gasoline',
+        transmission: json['transmission']?.toString() ?? 'Manual',
+        modelYear:
+            json['modelYear']?.toString() ??
+            json['year']?.toString() ??
+            'Unknown',
+        features: featureList,
+        carProvider: provider,
+      );
+    } catch (e) {
+      print('Error parsing Car from JSON: $e');
+      print('JSON data: $json');
+      rethrow;
+    }
   }
 }
 

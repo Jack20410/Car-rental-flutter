@@ -5,7 +5,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:http/http.dart' as http;
 import '../models/car.dart';
 import '../utils/currency_formatter.dart';
-import '../config/app_config.dart';
+import '../config/environment.dart';
 
 class CarCard extends StatefulWidget {
   final Car car;
@@ -31,7 +31,7 @@ class _CarCardState extends State<CarCard> {
   Future<void> _fetchRatings() async {
     try {
       final response = await http.get(
-        Uri.parse(AppConfig.getRatingsUrl(widget.car.id)),
+        Uri.parse(Environment.getRatingsUrl(widget.car.id)),
       );
       if (response.statusCode == 200) {
         final List<dynamic> ratings = json.decode(response.body);
@@ -146,7 +146,7 @@ class _CarCardState extends State<CarCard> {
                         widget.car.images.isNotEmpty &&
                             widget.car.images.first.isNotEmpty
                         ? CachedNetworkImage(
-                            imageUrl: AppConfig.getImageUrl(
+                            imageUrl: Environment.getVehicleImageUrl(
                               widget.car.images.first,
                             ),
                             fit: BoxFit.cover,
