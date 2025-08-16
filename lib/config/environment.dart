@@ -52,7 +52,7 @@ class Environment {
 
   /// Grid layout configuration
   static const int gridCrossAxisCount = 2;
-  static const double gridChildAspectRatio = 0.8; // Increased from 0.75 to give more width relative to height
+  static const double gridChildAspectRatio = 0.7; // Reduced to fix overflow issues
 
   // ==========================================
   // LOCALIZATION & CURRENCY

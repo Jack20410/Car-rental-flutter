@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
@@ -101,100 +103,64 @@ class _CarCardState extends State<CarCard> {
     }
   }
 
+  /// Fetches provider name with clean error handling and fallback logic
   Future<void> _fetchProviderName() async {
-
-    // Check if we have a provider ID to fetch
-    if (widget.car.carProviderId == null || widget.car.carProviderId!.isEmpty) {
-      // Use existing provider name if available
-      if (widget.car.carProvider != null) {
-        print(
-          'Using existing provider object: ${widget.car.carProvider!.fullName}',
-        );
-        setState(() {
-          providerName = widget.car.carProvider!.fullName;
-        });
-      } else {
-        print('No carProviderId found for car: ${widget.car.id}');
-        setState(() {
-          providerName = 'No Provider';
-        });
-      }
+    // Return early if provider info is already available
+    if (_hasProviderInfo()) {
+      _setProviderFromExistingData();
       return;
     }
 
+    // Validate provider ID before making API call
+    if (!_hasValidProviderId()) {
+      _setDefaultProvider();
+      return;
+    }
+
+    await _fetchProviderFromApi();
+  }
+
+  /// Checks if provider information is already available
+  bool _hasProviderInfo() {
+    return widget.car.carProvider != null &&
+        widget.car.carProvider!.fullName.isNotEmpty;
+  }
+
+  /// Checks if we have a valid provider ID to fetch from API
+  bool _hasValidProviderId() {
+    return widget.car.carProviderId != null &&
+        widget.car.carProviderId!.isNotEmpty;
+  }
+
+  /// Sets provider name from existing car provider data
+  void _setProviderFromExistingData() {
+    setState(() {
+      providerName = widget.car.carProvider!.fullName;
+    });
+  }
+
+  /// Sets default provider name when no data is available
+  void _setDefaultProvider() {
+    setState(() {
+      providerName = 'No Provider';
+    });
+  }
+
+  /// Fetches provider information from API
+  Future<void> _fetchProviderFromApi() async {
+    setState(() {
+      isLoadingProvider = true;
+    });
+
     try {
+      final response = await _makeProviderApiCall();
+      final extractedName = _extractProviderName(response);
+      
       setState(() {
-        isLoadingProvider = true;
+        providerName = extractedName;
       });
-
-      final url = Environment.getUserNameUrl(widget.car.carProviderId!);
-
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-
-        // Handle different response structures
-        String? name;
-        if (data is Map<String, dynamic>) {
-          // Check if data is nested (has 'data' field)
-          Map<String, dynamic> userData = data;
-          if (data.containsKey('data') &&
-              data['data'] is Map<String, dynamic>) {
-            userData = data['data'] as Map<String, dynamic>;
-          }
-
-          // Try different possible field names for the user's full name
-          name =
-              userData['fullName']?.toString() ??
-              userData['full_name']?.toString() ??
-              userData['name']?.toString() ??
-              userData['username']?.toString() ??
-              userData['email']?.toString();
-
-          // Handle firstName + lastName combination
-          if (name == null || name.isEmpty) {
-            final firstName = userData['firstName']?.toString() ?? '';
-            final lastName = userData['lastName']?.toString() ?? '';
-            if (firstName.isNotEmpty || lastName.isNotEmpty) {
-              name = '$firstName $lastName'.trim();
-            }
-          }
-
-        } else {
-          print('Unexpected data format: ${data.runtimeType}');
-        }
-
-        // Ensure we have a valid name
-        final finalName = (name != null && name.isNotEmpty)
-            ? name
-            : 'Unknown Provider';
-
-        setState(() {
-          providerName = finalName;
-        });
-      } else {
-        print('Provider API failed with status: ${response.statusCode}');
-        print('Error response: ${response.body}');
-        // Fallback to existing provider name or default
-        setState(() {
-          providerName = widget.car.carProvider?.fullName ?? 'Unknown Provider';
-        });
-      }
     } catch (e) {
-      print(
-        'Error fetching provider name for ID ${widget.car.carProviderId}: $e',
-      );
-      // Fallback to existing provider name if available
-      setState(() {
-        providerName = widget.car.carProvider?.fullName ?? 'Unknown Provider';
-      });
+      _handleProviderFetchError(e);
     } finally {
       setState(() {
         isLoadingProvider = false;
@@ -202,43 +168,126 @@ class _CarCardState extends State<CarCard> {
     }
   }
 
+  /// Makes the HTTP request to fetch provider data
+  Future<http.Response> _makeProviderApiCall() async {
+    final url = Environment.getUserNameUrl(widget.car.carProviderId!);
+    
+    return await http.get(
+      Uri.parse(url),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    ).timeout(
+      const Duration(seconds: 10),
+      onTimeout: () => throw TimeoutException('Provider API timeout'),
+    );
+  }
+
+  /// Extracts provider name from API response
+  String _extractProviderName(http.Response response) {
+    if (response.statusCode != 200) {
+      throw HttpException(
+        'API returned ${response.statusCode}: ${response.body}',
+      );
+    }
+
+    final data = json.decode(response.body);
+    
+    if (data is! Map<String, dynamic>) {
+      throw FormatException('Invalid response format: ${data.runtimeType}');
+    }
+
+    // Extract user data (handle nested 'data' field)
+    final userData = data.containsKey('data') && data['data'] is Map<String, dynamic>
+        ? data['data'] as Map<String, dynamic>
+        : data;
+
+    return _parseNameFromUserData(userData);
+  }
+
+  /// Parses name from user data (only checks for fullName field)
+  String _parseNameFromUserData(Map<String, dynamic> userData) {
+    final fullName = userData['fullName']?.toString();
+    
+    if (fullName != null && fullName.isNotEmpty) {
+      return fullName;
+    }
+    
+    return 'Unknown Provider';
+  }
+
+  /// Handles errors during provider fetching
+  void _handleProviderFetchError(dynamic error) {
+    // Log error for debugging
+    debugPrint('Provider fetch error for ${widget.car.carProviderId}: $error');
+    
+    // Set fallback provider name
+    setState(() {
+      providerName = widget.car.carProvider?.fullName ?? 'Unknown Provider';
+    });
+  }
+
   Widget _buildStars(double rating) {
     List<Widget> stars = [];
     int fullStars = rating.floor();
-    bool hasHalfStar = (rating % 1) != 0;
+    bool hasHalfStar = (rating % 1) >= 0.5;
 
     for (int i = 1; i <= 5; i++) {
       if (i <= fullStars) {
-        stars.add(const Icon(Icons.star, color: Colors.amber, size: 14));
+        stars.add(const Icon(
+          Icons.star_rounded,
+          color: Color(0xFFFFA726), // Warmer amber color
+          size: 14,
+        ));
       } else if (i == fullStars + 1 && hasHalfStar) {
-        stars.add(const Icon(Icons.star_half, color: Colors.amber, size: 14));
+        stars.add(const Icon(
+          Icons.star_half_rounded,
+          color: Color(0xFFFFA726),
+          size: 14,
+        ));
       } else {
-        stars.add(const Icon(Icons.star_border, color: Colors.amber, size: 14));
+        stars.add(Icon(
+          Icons.star_outline_rounded,
+          color: Colors.grey[400],
+          size: 14,
+        ));
       }
     }
 
-    return Row(mainAxisSize: MainAxisSize.min, children: stars);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: stars,
+    );
   }
 
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'available':
-        return Colors.green;
+        return const Color(0xFF4CAF50); // Material Green
       case 'rented':
-        return Colors.blue;
+        return const Color(0xFF2196F3); // Material Blue
+      case 'maintenance':
+        return const Color(0xFFFF9800); // Material Orange
+      case 'unavailable':
+        return const Color(0xFFF44336); // Material Red
       default:
-        return Colors.grey;
+        return const Color(0xFF9E9E9E); // Material Grey
     }
   }
 
   Color _getStatusBackgroundColor(String status) {
     switch (status.toLowerCase()) {
       case 'available':
-        return Colors.green.shade50;
+        return const Color(0xFFE8F5E8); // Light green
       case 'rented':
-        return Colors.blue.shade50;
+        return const Color(0xFFE3F2FD); // Light blue
+      case 'maintenance':
+        return const Color(0xFFFFF3E0); // Light orange
+      case 'unavailable':
+        return const Color(0xFFFFEBEE); // Light red
       default:
-        return Colors.grey.shade50;
+        return const Color(0xFFF5F5F5); // Light grey
     }
   }
 
@@ -249,12 +298,19 @@ class _CarCardState extends State<CarCard> {
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 12,
+              offset: const Offset(0, 3),
+              spreadRadius: 0,
+            ),
+            BoxShadow(
+              color: Colors.black.withOpacity(0.02),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+              spreadRadius: 0,
             ),
           ],
         ),
@@ -266,11 +322,10 @@ class _CarCardState extends State<CarCard> {
               children: [
                 ClipRRect(
                   borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(12),
+                    top: Radius.circular(16),
                   ),
                   child: SizedBox(
-                    height:
-                        140, // Reduced from 140 to give more space for content
+                    height: 100, // Further reduced to prevent overflow
                     width: double.infinity,
                     child:
                         widget.car.images.isNotEmpty &&
@@ -304,25 +359,30 @@ class _CarCardState extends State<CarCard> {
                           ),
                   ),
                 ),
-                // Status badge
+                // Status badge with improved styling
                 Positioned(
-                  top: 8,
-                  right: 8,
+                  top: 12,
+                  right: 12,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 3,
+                      horizontal: 10,
+                      vertical: 5,
                     ),
                     decoration: BoxDecoration(
                       color: _getStatusBackgroundColor(widget.car.status),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: _getStatusColor(widget.car.status).withOpacity(0.2),
+                        width: 1,
+                      ),
                     ),
                     child: Text(
-                      widget.car.status,
+                      widget.car.status.toUpperCase(),
                       style: TextStyle(
                         color: _getStatusColor(widget.car.status),
                         fontSize: 10,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5,
                       ),
                     ),
                   ),
@@ -332,135 +392,145 @@ class _CarCardState extends State<CarCard> {
             // Content section - Use Expanded to fill remaining space
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(10), // Further reduced padding
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Car name with flexible height
-                    Flexible(
-                      child: Text(
-                        widget.car.name,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                          height: 1.1,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                    // Car name - more compact
+                    Text(
+                      widget.car.name,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1A1A1A),
+                        height: 1.1,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
 
-                    // Rating section - compact layout
+                    // Rating section with improved styling
                     if (!isLoadingRatings) ...[
                       Row(
                         children: [
                           _buildStars(averageRating),
+                          const SizedBox(width: 6),
+                          Text(
+                            '${averageRating.toStringAsFixed(1)}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF4A4A4A),
+                            ),
+                          ),
                           const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              totalReviews > 0 ? '($totalReviews)' : '(0)',
-                              style: const TextStyle(
-                                fontSize: 9,
-                                color: Colors.grey,
-                              ),
-                              overflow: TextOverflow.ellipsis,
+                          Text(
+                            '($totalReviews)',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF888888),
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 4),
+                    ] else ...[
+                      const SizedBox(height: 8),
+                      Shimmer.fromColors(
+                        baseColor: Colors.grey[300]!,
+                        highlightColor: Colors.grey[100]!,
+                        child: Container(
+                          height: 12,
+                          width: 80,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
                     ],
 
-                    // Car specifications - more compact layout
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildSpecItem(
+                    // Car specifications - compact version
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8F9FA),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildCompactSpecItem(
                             Icons.people_outline,
                             '${widget.car.seats}',
                           ),
-                        ),
-                        Expanded(
-                          child: _buildSpecItem(
+                          _buildCompactSpecItem(
                             Icons.local_gas_station_outlined,
-                            _truncateText(widget.car.fuelType, 8),
+                            widget.car.fuelType.substring(0, 3).toUpperCase(),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildSpecItem(
+                          _buildCompactSpecItem(
                             Icons.settings_outlined,
-                            _truncateText(widget.car.transmission, 6),
+                            widget.car.transmission.substring(0, 3).toUpperCase(),
                           ),
-                        ),
-                        Expanded(
-                          child: _buildSpecItem(
+                          _buildCompactSpecItem(
                             Icons.calendar_today_outlined,
                             widget.car.modelYear,
                           ),
+                        ],
+                      ),
+                    ),
+
+                    // Spacer to push bottom content down
+                    const Spacer(),
+
+                    // Provider section - compact
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.person_outline,
+                          size: 12,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: isLoadingProvider
+                              ? Container(
+                                  height: 8,
+                                  width: 40,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[300],
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                )
+                              : Text(
+                                  providerName ?? 'Loading...',
+                                  style: const TextStyle(
+                                    fontSize: 9,
+                                    color: Color(0xFF888888),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                         ),
                       ],
                     ),
+                    
+                    const SizedBox(height: 6),
 
-                    // Spacer to push price to bottom
-                    const Spacer(),
-
-                    // Price and provider section
+                    // Price section - simplified
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        // Provider info - show loading or provider name
-                        Expanded(
-                          flex: 2,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.person_outline,
-                                size: 10,
-                                color: Colors.blue,
-                              ),
-                              const SizedBox(width: 2),
-                              Flexible(
-                                child: isLoadingProvider
-                                    ? SizedBox(
-                                        height: 8,
-                                        width: 40,
-                                        child: LinearProgressIndicator(
-                                          backgroundColor: Colors.grey[200],
-                                          valueColor:
-                                              AlwaysStoppedAnimation<Color>(
-                                                Colors.grey[400]!,
-                                              ),
-                                        ),
-                                      )
-                                    : Text(
-                                        providerName ?? 'Loading...',
-                                        style: const TextStyle(
-                                          fontSize: 8,
-                                          color: Colors.grey,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        // Price section
-                        Expanded(
-                          flex: 1,
+                        Flexible(
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               FittedBox(
@@ -468,20 +538,38 @@ class _CarCardState extends State<CarCard> {
                                 child: Text(
                                   widget.car.rentalPricePerDay.toVNDCompact(),
                                   style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
                                     color: Theme.of(context).primaryColor,
                                   ),
                                 ),
                               ),
-                              const Text(
+                              Text(
                                 '/day',
                                 style: TextStyle(
-                                  fontSize: 7,
-                                  color: Colors.grey,
+                                  fontSize: 8,
+                                  color: Colors.grey[600],
                                 ),
                               ),
                             ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).primaryColor,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'Rent',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ],
@@ -496,25 +584,27 @@ class _CarCardState extends State<CarCard> {
     );
   }
 
-  // Helper method to truncate text if too long
-  String _truncateText(String text, int maxLength) {
-    if (text.length <= maxLength) return text;
-    return '${text.substring(0, maxLength)}..';
-  }
 
-  Widget _buildSpecItem(IconData icon, String text) {
-    return Row(
+
+  Widget _buildCompactSpecItem(IconData icon, String text) {
+    return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 9, color: Theme.of(context).primaryColor),
-        const SizedBox(width: 2),
-        Flexible(
-          child: Text(
-            text,
-            style: const TextStyle(fontSize: 8, color: Colors.grey),
-            overflow: TextOverflow.ellipsis,
-            maxLines: 1,
+        Icon(
+          icon,
+          size: 12,
+          color: Theme.of(context).primaryColor,
+        ),
+        const SizedBox(height: 2),
+        Text(
+          text,
+          style: const TextStyle(
+            fontSize: 8,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF4A4A4A),
           ),
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
         ),
       ],
     );
