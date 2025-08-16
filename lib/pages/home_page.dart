@@ -6,7 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import '../models/car.dart';
 import '../models/popular_location.dart';
-import '../widgets/car_card.dart';
+import '../widgets/car_card/car_card.dart';
 import '../config/environment.dart';
 import 'cars_page.dart';
 

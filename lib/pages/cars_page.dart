@@ -2,9 +2,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../models/car.dart';
-import '../widgets/car_card.dart';
+import '../widgets/car_card/car_card.dart';
 import '../config/environment.dart';
 import '../utils/currency_formatter.dart';
+import '../constants/car_brands.dart';
 
 class CarsPage extends StatefulWidget {
   final String? initialCity;
@@ -477,6 +478,27 @@ class _CarsPageState extends State<CarsPage> {
                 ],
                 onChanged: (value) {
                   setState(() => _selectedPriceRange = value ?? '');
+                  _applyFilters();
+                },
+              ),
+            ),
+
+            // Car Brand Filter
+            _buildFilterSection(
+              'Brand',
+              DropdownButton<String>(
+                value: _selectedCarType.isEmpty ? null : _selectedCarType,
+                hint: const Text('Any Brand'),
+                isExpanded: true,
+                items: [
+                  const DropdownMenuItem(value: '', child: Text('Any Brand')),
+                  ...CarBrands.allBrands.map(
+                    (brand) =>
+                        DropdownMenuItem(value: brand, child: Text(brand)),
+                  ),
+                ],
+                onChanged: (value) {
+                  setState(() => _selectedCarType = value ?? '');
                   _applyFilters();
                 },
               ),
