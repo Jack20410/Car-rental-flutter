@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
-import '../../../config/environment.dart';
+import '../../../config/app_config.dart';
 import '../../../models/car.dart';
 
 class CarImage extends StatelessWidget {
@@ -21,7 +21,7 @@ class CarImage extends StatelessWidget {
             width: double.infinity,
             child: car.images.isNotEmpty && car.images.first.isNotEmpty
                 ? CachedNetworkImage(
-                    imageUrl: Environment.getVehicleImageUrl(car.images.first),
+                    imageUrl: AppConfig.getVehicleImageUrl(car.images.first),
                     fit: BoxFit.cover,
                     placeholder: (context, url) => Shimmer.fromColors(
                       baseColor: Colors.grey[300]!,

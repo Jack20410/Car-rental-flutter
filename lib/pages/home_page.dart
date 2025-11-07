@@ -7,8 +7,11 @@ import 'package:shimmer/shimmer.dart';
 import '../models/car.dart';
 import '../models/popular_location.dart';
 import '../widgets/car_card/car_card.dart';
-import '../config/environment.dart';
+import '../config/app_config.dart';
+import '../services/auth_service.dart';
 import 'cars_page.dart';
+import 'login_page.dart';
+import 'car_detail_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -39,7 +42,7 @@ class _HomePageState extends State<HomePage> {
     for (var location in popularLocations) {
       try {
         final response = await http.get(
-          Uri.parse(Environment.getVehiclesUrl(city: location.name)),
+          Uri.parse(AppConfig.getVehiclesUrl(city: location.name)),
         );
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
@@ -62,23 +65,23 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _fetchFeaturedCars() async {
     try {
-      if (Environment.enableApiLogging) {
+      if (AppConfig.enableApiLogging) {
         print(
-          'Fetching cars from: ${Environment.getVehiclesUrl(filters: {'limit': '100'})}',
+          'Fetching cars from: ${AppConfig.getVehiclesUrl(filters: {'limit': '100'})}',
         );
       }
 
       final response = await http
           .get(
-            Uri.parse(Environment.getVehiclesUrl(filters: {'limit': '100'})),
+            Uri.parse(AppConfig.getVehiclesUrl(filters: {'limit': '100'})),
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
             },
           )
-          .timeout(Duration(seconds: Environment.defaultTimeout));
+          .timeout(Duration(seconds: AppConfig.defaultTimeout));
 
-      if (Environment.enableApiLogging) {
+      if (AppConfig.enableApiLogging) {
         print('Response status: ${response.statusCode}');
       }
 
@@ -141,7 +144,7 @@ class _HomePageState extends State<HomePage> {
         availableVehicles.shuffle();
         setState(() {
           featuredCars = availableVehicles
-              .take(Environment.maxFeaturedCars)
+              .take(AppConfig.maxFeaturedCars)
               .toList();
           isLoading = false;
           error = null; // Clear any previous errors
@@ -219,91 +222,224 @@ class _HomePageState extends State<HomePage> {
   Widget _buildUserPage() {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profile'),
+        title: Text(AuthService.isLoggedIn ? 'Profile' : 'Account'),
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
         automaticallyImplyLeading: false,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          children: [
-            // Profile header
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(15),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  CircleAvatar(
-                    radius: 50,
-                    backgroundColor: Theme.of(context).primaryColor,
-                    child: const Icon(
-                      Icons.person,
-                      size: 50,
+      body: AuthService.isLoggedIn
+          ? _buildLoggedInUserPage()
+          : _buildGuestUserPage(),
+    );
+  }
+
+  Widget _buildLoggedInUserPage() {
+    final user = AuthService.currentUser;
+    return Padding(
+      padding: const EdgeInsets.all(20.0),
+      child: Column(
+        children: [
+          // Profile header
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(15),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                CircleAvatar(
+                  radius: 50,
+                  backgroundColor: Theme.of(context).primaryColor,
+                  child: Text(
+                    (user?['name'] ?? 'User').substring(0, 1).toUpperCase(),
+                    style: const TextStyle(
+                      fontSize: 36,
+                      fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'John Doe',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'john.doe@email.com',
-                    style: TextStyle(fontSize: 16, color: Colors.grey),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 30),
-            // Menu options
-            _buildMenuOption(Icons.history, 'Rental History', () {
-              print('Navigate to rental history');
-            }),
-            _buildMenuOption(Icons.favorite, 'Favorites', () {
-              print('Navigate to favorites');
-            }),
-            _buildMenuOption(Icons.payment, 'Payment Methods', () {
-              print('Navigate to payment methods');
-            }),
-            _buildMenuOption(Icons.settings, 'Settings', () {
-              print('Navigate to settings');
-            }),
-            _buildMenuOption(Icons.help, 'Help & Support', () {
-              print('Navigate to help');
-            }),
-            const Spacer(),
-            // Logout button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  print('Logout');
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  user?['name'] ?? 'User',
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                child: const Text('Logout', style: TextStyle(fontSize: 16)),
+                const SizedBox(height: 8),
+                Text(
+                  user?['email'] ?? '',
+                  style: const TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 30),
+          // Menu options
+          _buildMenuOption(Icons.history, 'Rental History', () {
+            print('Navigate to rental history');
+          }),
+          _buildMenuOption(Icons.favorite, 'Favorites', () {
+            print('Navigate to favorites');
+          }),
+          _buildMenuOption(Icons.payment, 'Payment Methods', () {
+            print('Navigate to payment methods');
+          }),
+          _buildMenuOption(Icons.settings, 'Settings', () {
+            print('Navigate to settings');
+          }),
+          _buildMenuOption(Icons.help, 'Help & Support', () {
+            print('Navigate to help');
+          }),
+          const Spacer(),
+          // Logout button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () async {
+                await AuthService.logout();
+                setState(() {
+                  // Refresh the UI after logout
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Logged out successfully'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('Logout', style: TextStyle(fontSize: 16)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGuestUserPage() {
+    return Padding(
+      padding: const EdgeInsets.all(20.0),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Guest icon
+          Container(
+            width: 120,
+            height: 120,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.person_outline,
+              size: 60,
+              color: Colors.grey.shade400,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Welcome to Car Rental',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade800,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Sign in to access your account, view rental history, manage favorites, and more.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey.shade600,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 40),
+          // Login button
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: ElevatedButton(
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginPage()),
+                );
+                if (result == true) {
+                  setState(() {
+                    // Refresh the UI after successful login
+                  });
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).primaryColor,
+                foregroundColor: Colors.white,
+                elevation: 3,
+                shadowColor: Colors.blue.withOpacity(0.3),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                'Sign In',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               ),
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 16),
+          // Browse as guest
+          TextButton(
+            onPressed: () {
+              setState(() {
+                _currentIndex = 0; // Navigate to home page
+              });
+            },
+            child: Text(
+              'Continue browsing as guest',
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+            ),
+          ),
+          const SizedBox(height: 40),
+          // Features preview
+          _buildFeatureRow(Icons.history, 'Track your rentals'),
+          _buildFeatureRow(Icons.favorite, 'Save favorite cars'),
+          _buildFeatureRow(Icons.payment, 'Manage payment methods'),
+          _buildFeatureRow(Icons.notifications, 'Get rental updates'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeatureRow(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: Theme.of(context).primaryColor),
+          const SizedBox(width: 12),
+          Text(
+            text,
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+          ),
+        ],
       ),
     );
   }
@@ -426,7 +562,7 @@ class _HomePageState extends State<HomePage> {
                 enlargeCenterPage: true,
                 autoPlay: true,
                 autoPlayInterval: Duration(
-                  seconds: Environment.carouselAutoPlayInterval,
+                  seconds: AppConfig.carouselAutoPlayInterval,
                 ),
                 showIndicator: true,
                 slideIndicator: CircularStaticIndicator(),
@@ -611,8 +747,8 @@ class _HomePageState extends State<HomePage> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: Environment.gridCrossAxisCount,
-                childAspectRatio: Environment.gridChildAspectRatio,
+                crossAxisCount: AppConfig.gridCrossAxisCount,
+                childAspectRatio: AppConfig.gridChildAspectRatio,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
               ),
@@ -622,8 +758,12 @@ class _HomePageState extends State<HomePage> {
                 return CarCard(
                   car: car,
                   onTap: () {
-                    // Navigate to car details
-                    print('Tapped on car: ${car.name}, ${car.id}');
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => CarDetailPage(car: car),
+                      ),
+                    );
                   },
                 );
               },

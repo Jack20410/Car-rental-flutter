@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
 import 'pages/home_page.dart';
+import 'pages/login_page.dart';
 import 'config/app_config.dart';
+import 'services/auth_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
   // Initialize app configuration
-  AppConfig.initialize(environment: AppEnvironment.development);
+  AppConfig.initialize(environment: AppEnvironment.production);
+
+  // Initialize authentication service
+  await AuthService.initialize();
 
   runApp(const MyApp());
 }
@@ -26,6 +33,10 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       home: const HomePage(),
+      routes: {
+        '/login': (context) => const LoginPage(),
+        '/home': (context) => const HomePage(),
+      },
     );
   }
 }

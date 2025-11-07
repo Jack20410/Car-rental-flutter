@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../models/car.dart';
 import '../widgets/car_card/car_card.dart';
-import '../config/environment.dart';
+import '../config/app_config.dart';
 import '../utils/currency_formatter.dart';
 import '../constants/car_brands.dart';
+import 'car_detail_page.dart';
 
 class CarsPage extends StatefulWidget {
   final String? initialCity;
@@ -58,7 +59,7 @@ class _CarsPageState extends State<CarsPage> {
       final response = await http
           .get(
             Uri.parse(
-              Environment.getVehiclesUrl(
+              AppConfig.getVehiclesUrl(
                 city: widget.initialCity,
                 filters: {'limit': '100'},
               ),
@@ -68,7 +69,7 @@ class _CarsPageState extends State<CarsPage> {
               'Accept': 'application/json',
             },
           )
-          .timeout(Duration(seconds: Environment.defaultTimeout));
+          .timeout(Duration(seconds: AppConfig.defaultTimeout));
 
       if (response.statusCode == 200) {
         final responseBody = response.body;
@@ -821,8 +822,8 @@ class _CarsPageState extends State<CarsPage> {
                 )
               : GridView.builder(
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: Environment.gridCrossAxisCount,
-                    childAspectRatio: Environment.gridChildAspectRatio,
+                    crossAxisCount: AppConfig.gridCrossAxisCount,
+                    childAspectRatio: AppConfig.gridChildAspectRatio,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
                   ),
@@ -832,8 +833,12 @@ class _CarsPageState extends State<CarsPage> {
                     return CarCard(
                       car: car,
                       onTap: () {
-                        // Navigate to car details
-                        print('Tapped on car: ${car.name}');
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CarDetailPage(car: car),
+                          ),
+                        );
                       },
                     );
                   },
